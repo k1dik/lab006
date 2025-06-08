@@ -1,4 +1,74 @@
-name: Build and Release lab006
+name: lab006-release
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - 'v*.*.*'
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+
+    - name: Set up build environment
+      run: sudo apt-get update && sudo apt-get install -y zip tar rpm dpkg
+
+    - name: Build solver
+      run: |
+        mkdir -p build
+        # Добавь сюда команду сборки solver, например:
+        # g++ src/solver.cpp -o build/solver
+        echo "Собираем solver (замени на свою команду)"
+        echo -e '#!/bin/bash\necho solver' > build/solver
+        chmod +x build/solver
+
+    - name: Create source archives
+      run: |
+        tar czf source.tar.gz --exclude='.git' --exclude='.github' .
+        zip -r source.zip . -x "*.git/*" "*.github/*"
+
+    - name: Create packages
+      run: |
+        # Примерные команды, замени на свои
+        # .deb пакет
+        mkdir -p package-deb/DEBIAN
+        echo "Package: solver" > package-deb/DEBIAN/control
+        echo "Version: 1.0.0" >> package-deb/DEBIAN/control
+        echo "Architecture: amd64" >> package-deb/DEBIAN/control
+        echo "Maintainer: Your Name <email@example.com>" >> package-deb/DEBIAN/control
+        echo "Description: Solver app" >> package-deb/DEBIAN/control
+        mkdir -p package-deb/usr/local/bin
+        cp build/solver package-deb/usr/local/bin/solver
+        dpkg-deb --build package-deb solver.deb
+
+        # .rpm пакет
+        mkdir -p package-rpm/usr/local/bin
+        cp build/solver package-rpm/usr/local/bin/solver
+        fpm -s dir -t rpm -n solver -v 1.0.0 -C package-rpm .
+
+        # .msi и .dmg заглушки (пока просто архивы)
+        cp build/solver solver.exe
+        zip solver.msi solver.exe
+        zip solver.dmg solver.exe
+
+    - name: Create GitHub Release
+      uses: softprops/action-gh-release@v2
+      with:
+        files: |
+          build/solver
+          source.zip
+          source.tar.gz
+          solver.deb
+          solver.rpm
+          solver.msi
+          solver.dmg
+      env:
+        GITHUB_TOKEN: ${{ secrets.RELEASE_TOKEN }}name: Build and Release lab006
 
 on:
   push:
