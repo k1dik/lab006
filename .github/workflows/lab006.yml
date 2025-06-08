@@ -29,8 +29,8 @@ jobs:
 
     - name: Create source archives
       run: |
-        tar czf source.tar.gz --exclude='.git' --exclude='.github' .
-        zip -r source.zip . -x "*.git/*" "*.github/*"
+        tar czf source.tar.gz src/ build/ README.md
+        zip -r source.zip src/ build/ README.md
 
     - name: Create packages
       run: |
