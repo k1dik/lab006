@@ -3,19 +3,20 @@ name: lab006 CI/CD
 on:
   push:
     branches:
-      - master
+      - main
   release:
     types: [created]
 
 jobs:
   build_and_test:
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
 
       - name: Install build dependencies
-        run: sudo apt-get update && sudo apt-get install -y build-essential cmake fakeroot rpm dpkg zip
+        run: sudo apt-get update && sudo apt-get install -y build-essential cmake fakeroot rpm dpkg
 
       - name: Build solver
         run: |
@@ -60,31 +61,46 @@ Summary: Solver application
 License: MIT
 Group: Applications
 BuildArch: x86_64
+
 %description
 Solver application.
+
 %prep
 %setup -q
+
 %build
 mkdir -p %{buildroot}/usr/local/bin
 cp build/solver %{buildroot}/usr/local/bin/solver
+
 %install
+
 %files
 /usr/local/bin/solver
 EOF
           rpmbuild -bb rpmbuild/SPECS/solver.spec
           cp rpmbuild/RPMS/x86_64/solver-1.0.0-1.x86_64.rpm .
 
-      - name: Build Windows .msi installer (fake zip)
+      - name: Build Windows .msi installer
         if: runner.os == 'Windows' || runner.os == 'ubuntu-latest'
         run: |
           cp build/solver solver.exe
           zip solver.msi solver.exe
 
-      - name: Build macOS .dmg installer (fake zip)
+      - name: Build macOS .dmg installer
         if: runner.os == 'macos' || runner.os == 'ubuntu-latest'
         run: |
           cp build/solver solver
           zip solver.dmg solver
+
+  release:
+    runs-on: ubuntu-latest
+    needs: build_and_test
+
+    steps:
+      - name: Download build artifacts
+        uses: actions/download-artifact@v3
+        with:
+          name: my-app
 
       - name: Upload release assets
         uses: softprops/action-gh-release@v2
