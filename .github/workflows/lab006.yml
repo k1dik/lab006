@@ -1,71 +1,105 @@
-name: lab006-release
+name: lab006 CI/CD
 
 on:
   push:
     branches:
-      - main
-    tags:
-      - 'v*.*.*'
+      - master
+  release:
+    types: [created]
+  # Или чтобы билд запускался на тегах
+  # tags:
+  #   - 'v*'
 
 jobs:
-  build-and-release:
+  build_and_test:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v3
+      - name: Checkout code
+        uses: actions/checkout@v3
 
-    - name: Set up build environment
-      run: sudo apt-get update && sudo apt-get install -y zip tar rpm dpkg
+      - name: Install build dependencies
+        run: sudo apt-get update && sudo apt-get install -y build-essential cmake fakeroot rpm dpkg
 
-    - name: Build solver
-      run: |
-        mkdir -p build
-        # Добавь сюда команду сборки solver, например:
-        # g++ src/solver.cpp -o build/solver
-        echo "Собираем solver (замени на свою команду)"
-        echo -e '#!/bin/bash\necho solver' > build/solver
-        chmod +x build/solver
+      - name: Build solver
+        run: |
+          mkdir -p build
+          cd build
+          cmake ..
+          make
 
-    - name: Create source archives
-      run: |
-        tar czf source.tar.gz src/ build/ README.md
-        zip -r source.zip src/ build/ README.md
+      - name: Run tests
+        run: |
+          cd build
+          ctest --output-on-failure
 
-    - name: Create packages
-      run: |
-        # Примерные команды, замени на свои
-        # .deb пакет
-        mkdir -p package-deb/DEBIAN
-        echo "Package: solver" > package-deb/DEBIAN/control
-        echo "Version: 1.0.0" >> package-deb/DEBIAN/control
-        echo "Architecture: amd64" >> package-deb/DEBIAN/control
-        echo "Maintainer: Your Name <email@example.com>" >> package-deb/DEBIAN/control
-        echo "Description: Solver app" >> package-deb/DEBIAN/control
-        mkdir -p package-deb/usr/local/bin
-        cp build/solver package-deb/usr/local/bin/solver
-        dpkg-deb --build package-deb solver.deb
+      - name: Create source archives
+        run: |
+          tar czf source.tar.gz src/ build/
+          zip -r source.zip src/ build/
 
-        # .rpm пакет
-        mkdir -p package-rpm/usr/local/bin
-        cp build/solver package-rpm/usr/local/bin/solver
-        fpm -s dir -t rpm -n solver -v 1.0.0 -C package-rpm .
+      - name: Build .deb package
+        run: |
+          mkdir -p pkg/DEBIAN
+          echo "Package: solver" > pkg/DEBIAN/control
+          echo "Version: 1.0.0" >> pkg/DEBIAN/control
+          echo "Section: base" >> pkg/DEBIAN/control
+          echo "Priority: optional" >> pkg/DEBIAN/control
+          echo "Architecture: amd64" >> pkg/DEBIAN/control
+          echo "Maintainer: Your Name <youremail@example.com>" >> pkg/DEBIAN/control
+          echo "Description: Solver application" >> pkg/DEBIAN/control
+          mkdir -p pkg/usr/local/bin
+          cp build/solver pkg/usr/local/bin/
+          dpkg-deb --build pkg solver_1.0.0_amd64.deb
 
-        # .msi и .dmg заглушки (пока просто архивы)
-        cp build/solver solver.exe
-        zip solver.msi solver.exe
-        zip solver.dmg solver.exe
+      - name: Build .rpm package
+        run: |
+          mkdir -p rpmbuild/{BUILD,RPMS,SOURCES,SPECS,SRPMS}
+          cp source.tar.gz rpmbuild/SOURCES/
+          cat > rpmbuild/SPECS/solver.spec <<EOF
+          Name: solver
+          Version: 1.0.0
+          Release: 1%{?dist}
+          Summary: Solver application
+          License: MIT
+          Group: Applications
+          BuildArch: x86_64
+          %description
+          Solver application.
+          %prep
+          %setup -q
+          %build
+          mkdir -p %{buildroot}/usr/local/bin
+          cp build/solver %{buildroot}/usr/local/bin/solver
+          %install
+          %files
+          /usr/local/bin/solver
+          EOF
+          rpmbuild -bb rpmbuild/SPECS/solver.spec
+          cp rpmbuild/RPMS/x86_64/solver-1.0.0-1.x86_64.rpm .
 
-    - name: Create GitHub Release
-      uses: softprops/action-gh-release@v2
-      with:
-        files: |
-          build/solver
-          source.zip
-          source.tar.gz
-          solver.deb
-          solver.rpm
-          solver.msi
-          solver.dmg
-      env:
-        GITHUB_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+      - name: Build Windows .msi installer
+        if: runner.os == 'Windows' || runner.os == 'ubuntu-latest'  # упрощено, реально на Windows нужно запускать
+        run: |
+          # Просто сделаем zip с расширением msi (пример)
+          cp build/solver solver.exe
+          zip solver.msi solver.exe
+
+      - name: Build macOS .dmg installer
+        if: runner.os == 'macos' || runner.os == 'ubuntu-latest'  # упрощено
+        run: |
+          cp build/solver solver
+          zip solver.dmg solver
+
+      - name: Upload release assets
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            source.tar.gz
+            source.zip
+            solver_1.0.0_amd64.deb
+            solver-1.0.0-1.x86_64.rpm
+            solver.msi
+            solver.dmg
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
