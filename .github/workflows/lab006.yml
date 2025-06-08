@@ -54,3 +54,15 @@ jobs:
             solver.dmg
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            source.zip
+            source.tar.gz
+            solver.deb
+            solver.rpm
+            solver.msi
+            solver.dmg
+        env:
+          GITHUB_TOKEN: ${{ secrets.RELEASE_TOKEN }}
