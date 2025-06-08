@@ -22,7 +22,7 @@ jobs:
 
       - name: Create source archives
         run: |
-          zip -r source.zip . -x "*.git*"
+          zip -r source.zip . -x "*.git/*" "*.github/*" "*.gitignore"
           tar --exclude-vcs -czf source.tar.gz .
 
       - name: Create .deb package
